@@ -20,7 +20,7 @@ http.listen(PORT, () => {
 
 const socketIO = require('socket.io')(http, {
   cors: {
-      origin: "https://quick-collab-client.vercel.app/"
+      origin: "*"
   }
 });
 
