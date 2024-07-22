@@ -1,41 +1,58 @@
 const express = require('express');
+const http = require('http');
+const socketIO = require('socket.io');
+const compression = require('compression');
+const redisAdapter = require('socket.io-redis');
+const cluster = require('cluster');
+const numCPUs = require('os').cpus().length;
+
 const app = express();
-const PORT = 5000;
-
-//New imports
-const http = require('http').Server(app);
-const cors = require('cors');
-
-app.use(cors());
-
-app.get('/api', (req, res) => {
-  res.json({
-    message: 'Hello world',
-  });
-});
-
-http.listen(PORT, () => {
-  console.log(`Server listening on ${PORT}`);
-});
-
-const socketIO = require('socket.io')(http, {
+const server = http.Server(app);
+const io = socketIO(server, {
   cors: {
-      origin: "*"
-  }
-});
-
-
-
-//Add this before the app.get() block
-socketIO.on('connection', (socket) => {
-  console.log(`⚡: ${socket.id} user just connected!`);
-
-  socket.on("sendCollab",(ele)=>{
- 
-    if(ele != undefined && ele != null) socketIO.emit("getCollab",ele);
-  })
+    origin: "*"
+  },
+  transports: ['websocket'],
   
-  socket.on('disconnect', () => {
-    console.log('🔥: A user disconnected');
-  });
 });
+
+if (cluster.isMaster) {
+  for (let i = 0; i < numCPUs; i++) {
+    cluster.fork();
+  }
+
+  cluster.on('exit', (worker, code, signal) => {
+    console.log(`Worker ${worker.process.pid} died`);
+    cluster.fork();
+  });
+} else {
+  app.use(compression());
+
+  app.get('/api', (req, res) => {
+    res.json({
+      message: 'Hello world',
+    });
+  });
+
+  // Configure the Redis adapter for Socket.IO
+  io.adapter(redisAdapter({
+    host: 'https://quickcollab-backend-production.up.railway.app', // Redis server running on the same machine
+    port: 6379        // Default Redis port
+  }));
+
+  io.on('connection', (socket) => {
+    console.log(`⚡: ${socket.id} user just connected!`);
+
+    socket.on("sendCollab", (ele) => {
+      if (ele !== undefined && ele !== null) io.emit("getCollab", ele);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('🔥: A user disconnected');
+    });
+  });
+
+  server.listen(5000, () => {
+    console.log(`Server listening on port 5000`);
+  });
+}
