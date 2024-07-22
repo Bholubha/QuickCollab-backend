@@ -1,16 +1,12 @@
 const express = require('express');
 const http = require('http');
-
+const socketIO = require('socket.io');
 const cluster = require('cluster');
 const os = require('os');
 
 const PORT = 5000;
 const numCPUs = os.cpus().length;
-const socketIO = require('socket.io')(http, {
-  cors: {
-      origin: "*"
-  }
-});
+
 if (cluster.isMaster) {
   // Fork workers.
   for (let i = 0; i < numCPUs; i++) {
@@ -22,12 +18,18 @@ if (cluster.isMaster) {
   });
 } else {
   const app = express();
-  const server = http.createServer(app);
-  const io = socketIO(server);
-
+  
   // Middleware for CORS
   const cors = require('cors');
   app.use(cors());
+  
+  const server = http.createServer(app);
+  const io = socketIO(server, {
+    cors: {
+      origin: "*"
+    }
+  });
+
 
   // Define a simple API endpoint
   app.get('/api', (req, res) => {
