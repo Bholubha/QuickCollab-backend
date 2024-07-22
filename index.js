@@ -1,56 +1,52 @@
 const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
-const compression = require('compression');
+const cors = require('cors');
 const redisAdapter = require('socket.io-redis');
-const cluster = require('cluster');
-const numCPUs = require('os').cpus().length;
 
 const app = express();
 const server = http.Server(app);
 const io = socketIO(server, {
   cors: {
-    origin: "*"
-  }
+    origin: "*", // Allows all origins, for development only
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type"],
+    credentials: true
+  },
+  transports: ['websocket', 'polling']
 });
 
-if (cluster.isMaster) {
-  for (let i = 0; i < numCPUs; i++) {
-    cluster.fork();
-  }
+app.use(cors({
+  origin: '*', // Allows all origins, for development only
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type'],
+  credentials: true
+}));
 
-  cluster.on('exit', (worker, code, signal) => {
-    console.log(`Worker ${worker.process.pid} died`);
-    cluster.fork();
+app.get('/api', (req, res) => {
+  res.json({
+    message: 'Hello world',
   });
-} else {
-  app.use(compression());
+});
 
-  app.get('/api', (req, res) => {
-    res.json({
-      message: 'Hello world',
-    });
-  });
+io.adapter(redisAdapter({
+  host: 'https://quickcollab-backend-production.up.railway.app', // Redis server host
+  port: 6379 // Redis server port
+}));
 
-  // Configure the Redis adapter for Socket.IO
-  io.adapter(redisAdapter({
-    host: 'https://quickcollab-backend-production.up.railway.app', // Redis server running on the same machine
-    port: 6379        // Default Redis port
-  }));
+io.on('connection', (socket) => {
+  console.log(`⚡: ${socket.id} user just connected!`);
 
-  io.on('connection', (socket) => {
-    console.log(`⚡: ${socket.id} user just connected!`);
-
-    socket.on("sendCollab", (ele) => {
-      if (ele !== undefined && ele !== null) io.emit("getCollab", ele);
-    });
-
-    socket.on('disconnect', () => {
-      console.log('🔥: A user disconnected');
-    });
+  socket.on("sendCollab", (ele) => {
+    if (ele !== undefined && ele !== null) io.emit("getCollab", ele);
   });
 
-  server.listen(5000, () => {
-    console.log(`Server listening on port 5000`);
+  socket.on('disconnect', () => {
+    console.log('🔥: A user disconnected');
   });
-}
+});
+
+const PORT =  5000;
+server.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
