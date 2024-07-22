@@ -22,8 +22,8 @@ if (cluster.isMaster) {
   // Middleware for CORS
   const cors = require('cors');
   app.use(cors());
-  
-  const server = http.createServer(app);
+
+  const server = http.Server(app);
   const io = socketIO(server, {
     cors: {
       origin: "*"
