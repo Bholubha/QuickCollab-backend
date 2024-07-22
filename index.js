@@ -1,27 +1,12 @@
 const express = require('express');
-const http = require('http');
-const socketIO = require('socket.io');
-const cors = require('cors');
-const redisAdapter = require('socket.io-redis');
-
 const app = express();
-const server = http.Server(app);
-const io = socketIO(server, {
-  cors: {
-    origin: "*", // Allows all origins, for development only
-    methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type"],
-    credentials: true
-  },
-  transports: ['websocket', 'polling']
-});
+const PORT = 5000;
 
-app.use(cors({
-  origin: '*', // Allows all origins, for development only
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type'],
-  credentials: true
-}));
+//New imports
+const http = require('http').Server(app);
+const cors = require('cors');
+
+app.use(cors());
 
 app.get('/api', (req, res) => {
   res.json({
@@ -29,24 +14,28 @@ app.get('/api', (req, res) => {
   });
 });
 
-io.adapter(redisAdapter({
-  host: 'https://quickcollab-backend-production.up.railway.app', // Redis server host
-  port: 6379 // Redis server port
-}));
+http.listen(PORT, () => {
+  console.log(`Server listening on ${PORT}`);
+});
 
-io.on('connection', (socket) => {
+const socketIO = require('socket.io')(http, {
+  cors: {
+      origin: "*"
+  }
+});
+
+
+
+//Add this before the app.get() block
+socketIO.on('connection', (socket) => {
   console.log(`⚡: ${socket.id} user just connected!`);
 
-  socket.on("sendCollab", (ele) => {
-    if (ele !== undefined && ele !== null) io.emit("getCollab", ele);
-  });
-
+  socket.on("sendCollab",(ele)=>{
+ 
+    if(ele != undefined && ele != null) socketIO.emit("getCollab",ele);
+  })
+  
   socket.on('disconnect', () => {
     console.log('🔥: A user disconnected');
   });
-});
-
-const PORT =  5000;
-server.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
 });
