@@ -11,9 +11,7 @@ const server = http.Server(app);
 const io = socketIO(server, {
   cors: {
     origin: "*"
-  },
-  transports: ['websocket'],
-  
+  }
 });
 
 if (cluster.isMaster) {
