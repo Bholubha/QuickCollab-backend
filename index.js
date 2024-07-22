@@ -1,48 +1,58 @@
 const express = require('express');
-const app = express();
-const http = require('http').Server(app);
-const cors = require('cors');
+const http = require('http');
+
+const cluster = require('cluster');
+const os = require('os');
+
+const PORT = 5000;
+const numCPUs = os.cpus().length;
 const socketIO = require('socket.io')(http, {
   cors: {
-    origin: "*", // Allow all origins for Socket.IO
+      origin: "*"
   }
 });
-const redisAdapter = require('socket.io-redis');
+if (cluster.isMaster) {
+  // Fork workers.
+  for (let i = 0; i < numCPUs; i++) {
+    cluster.fork();
+  }
 
-// Define the port
-const PORT = 5000;
-
-// Apply the CORS middleware with default settings (allows all origins)
-app.use(cors());
-
-// Define a simple API endpoint
-app.get('/api', (req, res) => {
-  res.json({
-    message: 'Hello world',
+  cluster.on('exit', (worker, code, signal) => {
+    console.log(`Worker ${worker.process.pid} died`);
   });
-});
+} else {
+  const app = express();
+  const server = http.createServer(app);
+  const io = socketIO(server);
 
-// Start the HTTP server
-http.listen(PORT, () => {
-  console.log(`Server listening on ${PORT}`);
-});
+  // Middleware for CORS
+  const cors = require('cors');
+  app.use(cors());
 
-// Apply Redis adapter (if using Redis, update host and port as needed)
-socketIO.adapter(redisAdapter({ host: 'localhost', port: 6379 }));
-
-// Handle Socket.IO connections
-socketIO.on('connection', (socket) => {
-  console.log(`⚡: ${socket.id} user just connected!`);
-
-  // Listen for 'sendCollab' event and broadcast it
-  socket.on("sendCollab", (ele) => {
-    if (ele != undefined && ele != null) {
-      socketIO.emit("getCollab", ele);
-    }
+  // Define a simple API endpoint
+  app.get('/api', (req, res) => {
+    res.json({
+      message: 'Hello world',
+    });
   });
 
-  // Handle Socket.IO disconnections
-  socket.on('disconnect', () => {
-    console.log('🔥: A user disconnected');
+  // Handle Socket.IO connections
+  io.on('connection', (socket) => {
+    console.log(`⚡: ${socket.id} user just connected!`);
+
+    socket.on('sendCollab', (ele) => {
+      if (ele != undefined && ele != null) {
+        io.emit('getCollab', ele);
+      }
+    });
+
+    socket.on('disconnect', () => {
+      console.log('🔥: A user disconnected');
+    });
   });
-});
+
+  // Start the server
+  server.listen(PORT, () => {
+    console.log(`Server listening on ${PORT}`);
+  });
+}
